@@ -1,16 +1,17 @@
 # escape=`
-FROM mcr.microsoft.com/windows/servercore:ltsc2016 as download
-ENV CONSUL_VERSION 1.4.4
+FROM mcr.microsoft.com/windows/servercore:ltsc2019 as download19
+ENV CONSUL_VERSION 1.9.3
 
-RUN powershell -Command $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'; `
+RUN powershell -Command $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';$AllProtocolsIzenda = [System.Net.SecurityProtocolType]'Ssl3,Tls,Tls11,Tls12';`
+            [System.Net.ServicePointManager]::SecurityProtocol = $AllProtocolsIzenda;`
     Invoke-WebRequest $('https://releases.hashicorp.com/consul/{0}/consul_{0}_windows_amd64.zip' -f $env:CONSUL_VERSION) -OutFile 'consul.zip' -UseBasicParsing ; `
-    Expand-Archive -Path consul.zip -DestinationPath C:\download -Force ; `
+    Expand-Archive -Path consul.zip -DestinationPath C:\download19 -Force ; `
     rm consul.zip ; `
-    mkdir C:\download\consul\data ; `
-    mkdir C:\download\consul\config
+    mkdir C:\download19\consul\data ; `
+    mkdir C:\download19\consul\config
 
-FROM mcr.microsoft.com/windows/servercore:ltsc2016
-COPY --from=download /download /
+FROM mcr.microsoft.com/windows/servercore:ltsc2019
+COPY --from=download19 /download19 /
 
 # Expose the consul data directory as a volume since there's mutable state in there.
 # VOLUME C:\consul\data
@@ -34,3 +35,13 @@ ENTRYPOINT [ "C:\\consul.exe" ]
 # everything in RAM, exposes a web UI and HTTP endpoints, and bootstraps itself.
 # Don't use this configuration for production.
 CMD ["agent", "-dev", "-client", "0.0.0.0"]
+
+FROM mcr.microsoft.com/windows/servercore:1803 
+ENV GIT_VERSION 2.30.1
+ENV GIT_PATCH_VERSION 2
+RUN mkdir C:\git2consul\cache
+ADD chk.ps1 /windows/temp/chk.ps1
+ADD gitconsul.json /git2consul/gitconsul.json
+RUN powershell.exe -executionpolicy bypass c:\windows\temp\chk.ps1
+RUN npm install git2consul-windows -g
+CMD ["git2consul-windows","---config-file","C:\git2consul\gitconsul.json"]
